@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>線表</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme: dark;
+  --bg:#0B111E;
+  --panel:#101828;
+  --panel-2:#18233A;
+  --line:#1C2740;
+  --line-strong:#2B3A5C;
+  --text:#E9EDF5;
+  --muted:#8490A8;
+  --today:#FFB84D;
+  --focus:#9CC4FF;
+  --weekend:rgba(255,255,255,.022);
+  --label-w:230px;
+  --row-h:42px;
+  --jp:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  --num:"Barlow Semi Condensed","Zen Kaku Gothic New","Hiragino Sans","Yu Gothic UI",system-ui,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  height:100%;margin:0;background:var(--bg);color:var(--text);
+  font-family:var(--jp);font-size:14px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.num{font-family:var(--num);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+
+.app{height:100%;display:flex;flex-direction:column;min-width:0}
+
+/* 上部のバー */
+.bar{
+  display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;
+  padding:12px 18px;border-bottom:1px solid var(--line-strong);background:var(--panel);
+}
+.bar h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.08em}
+.status{color:var(--muted);font-size:12px;margin-right:auto;min-width:0}
+.btn{
+  min-height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--line-strong);
+  background:transparent;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;
+}
+.btn:hover{background:var(--panel-2)}
+.btn.primary{background:var(--text);color:#0B111E;border-color:var(--text);font-weight:700}
+.btn.primary:hover{background:#fff}
+.btn.danger{color:#FF8A9B;border-color:#5a2b3a}
+.btn.danger:hover{background:#2a1520}
+.btn .dot{width:8px;height:8px;border-radius:50%;background:var(--today)}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:8px;padding:2px;gap:2px}
+.seg button{min-height:30px;min-width:44px;padding:0 12px;border:0;border-radius:6px;background:transparent;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--panel-2);color:var(--text);font-weight:700}
+
+/* 表 */
+.stage{position:relative;flex:1;min-height:0}
+.scroller{position:absolute;inset:0;overflow:auto;overscroll-behavior:contain}
+.sheet{display:flex;flex-direction:column;min-height:100%}
+
+.head{position:sticky;top:0;z-index:5;display:flex;background:var(--panel);border-bottom:1px solid var(--line-strong)}
+.corner{
+  position:sticky;left:0;z-index:6;flex:none;width:var(--label-w);
+  display:flex;align-items:flex-end;padding:0 14px 6px;
+  background:var(--panel);border-right:1px solid var(--line-strong);color:var(--muted);font-size:12px;
+}
+.scale{position:relative;flex:none}
+.scale-top{display:flex;height:28px;border-bottom:1px solid var(--line)}
+.mo{flex:none;overflow:clip;border-left:1px solid var(--line-strong);display:flex;align-items:center}
+.mo:first-child{border-left:0}
+.mo-t{position:sticky;left:calc(var(--label-w) + 10px);padding:0 10px;font-size:14px;font-weight:600;white-space:nowrap}
+.scale-bot{display:flex;height:26px}
+.tick{flex:none;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted)}
+.sheet[data-view="week"] .tick{width:var(--day-w)}
+.sheet[data-view="week"] .tick.mon{color:var(--text)}
+.sheet[data-view="week"] .tick.off{opacity:.5}
+.sheet[data-view="week"] .tick.now{color:#0B111E;background:var(--today);border-radius:6px;font-weight:600}
+.sheet[data-view="month"] .tick{width:calc(var(--day-w) * 7);justify-content:flex-start;padding-left:5px;font-size:12px}
+.notch{
+  position:absolute;bottom:-1px;width:0;height:0;transform:translateX(-50%);
+  border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid var(--today);
+}
+.sheet[data-view="week"] .notch{display:none}
+
+.body{position:relative;flex:1;display:flex;flex-direction:column}
+.under{position:absolute;top:0;bottom:0;left:var(--label-w);z-index:0;pointer-events:none;background-size:calc(var(--day-w) * 7) 100%}
+.sheet[data-view="week"] .under{
+  background-image:
+    linear-gradient(to right,var(--line) 0 1px,transparent 1px),
+    linear-gradient(to right,transparent 0 calc(var(--day-w) * 5),var(--weekend) calc(var(--day-w) * 5));
+}
+.sheet[data-view="month"] .under{
+  background-image:linear-gradient(to right,rgba(28,39,64,.6) 0 1px,transparent 1px);
+}
+.v{position:absolute;top:0;bottom:0;width:0}
+.v.month{border-left:1px solid var(--line-strong)}
+.v.event{border-left:1px dashed var(--c);opacity:.38}
+.v.today{border-left:2px solid var(--today);margin-left:-1px;box-shadow:0 0 12px rgba(255,184,77,.45)}
+.v.todaycol{width:var(--day-w);background:rgba(255,184,77,.06)}
+
+.row{position:relative;z-index:1;display:flex;flex:none;height:var(--row-h);border-bottom:1px solid rgba(28,39,64,.7)}
+.row:hover .track{background:rgba(255,255,255,.025)}
+.label{
+  position:sticky;left:0;z-index:2;flex:none;width:var(--label-w);
+  display:flex;align-items:center;gap:10px;padding:0 14px;text-align:left;
+  background:var(--panel);border:0;border-right:1px solid var(--line-strong);
+}
+.label:not(:disabled):hover{background:var(--panel-2)}
+.label:focus-visible{outline-offset:-2px}
+.chip{flex:none;width:10px;height:10px;border-radius:3px;background:var(--c)}
+.label .mk{flex:none;color:var(--c);display:flex;margin:0 -2px}
+.label .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.label.is-event .name{font-weight:700}
+.label .dates{flex:none;color:var(--muted);font-size:13px}
+.track{position:relative;flex:none}
+
+.task{
+  position:absolute;top:11px;height:20px;padding:0;border:0;border-radius:5px;
+  background:var(--c);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 2px 10px -4px var(--c);
+}
+.task:not(:disabled):hover{filter:brightness(1.12)}
+.ms{
+  position:absolute;top:0;height:100%;padding:0;border:0;background:transparent;
+  display:flex;align-items:center;gap:7px;white-space:nowrap;
+}
+.ms .mk{color:var(--c);display:flex;filter:drop-shadow(0 0 6px var(--c))}
+.ms .ms-name{font-size:12.5px;font-weight:700}
+.ms .ms-date{color:var(--muted);font-size:13px;font-weight:500}
+.ms:not(:disabled):hover .mk{transform:scale(1.15)}
+
+.fill{position:relative;z-index:1;flex:1;display:flex;min-height:24px}
+.fill .gut{position:sticky;left:0;flex:none;width:var(--label-w);background:var(--panel);border-right:1px solid var(--line-strong)}
+
+.empty{
+  position:absolute;left:0;right:0;top:120px;z-index:8;display:flex;flex-direction:column;align-items:center;gap:14px;
+  padding:0 20px;text-align:center;pointer-events:none;
+}
+.empty[hidden]{display:none}
+.empty p{margin:0;color:var(--muted)}
+.empty .acts{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;pointer-events:auto}
+
+/* 編集ダイアログ */
+dialog{
+  width:min(500px,calc(100vw - 24px));padding:0;border:1px solid var(--line-strong);border-radius:14px;
+  background:var(--panel);color:var(--text);box-shadow:0 24px 80px rgba(0,0,0,.6);
+}
+dialog::backdrop{background:rgba(5,8,15,.55)}
+.form{display:flex;flex-direction:column;gap:16px;padding:20px}
+.form h2{margin:0;font-size:17px;font-weight:700}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
+.field > span, fieldset legend{font-size:12px;color:var(--muted)}
+.field input{
+  min-height:40px;padding:0 12px;border-radius:8px;border:1px solid var(--line-strong);background:var(--bg);width:100%;
+}
+.pair{display:flex;gap:12px}
+fieldset{margin:0;padding:0;border:0;min-width:0}
+fieldset legend{padding:0;margin-bottom:6px}
+.opts{display:flex;gap:8px;flex-wrap:wrap}
+.opt{position:relative}
+.opt input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
+.opt span{
+  display:flex;align-items:center;justify-content:center;gap:6px;min-height:38px;min-width:44px;padding:0 12px;
+  border-radius:8px;border:1px solid var(--line-strong);
+}
+.opt input:checked + span{border-color:var(--text);background:var(--panel-2)}
+.opt input:focus-visible + span{outline:2px solid var(--focus);outline-offset:2px}
+.opt.sw span{padding:0;width:38px;min-width:38px}
+.opt.sw i{width:18px;height:18px;border-radius:5px;background:var(--c)}
+.opt.mark span{color:var(--muted)}
+.opt.mark input:checked + span{color:var(--text)}
+.foot{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px}
+.foot .sp{flex:1}
+.foot .primary{margin-left:auto}
+[hidden]{display:none !important}
+
+.banner{
+  display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;
+  padding:10px 18px;background:#1a2238;border-bottom:1px solid var(--line-strong);font-size:13px;
+}
+.banner p{margin:0;margin-right:auto}
+.banner .btn{min-height:32px}
+.filebox{display:flex;flex-direction:column;gap:10px}
+.filebox p{margin:0;color:var(--muted);font-size:13px}
+.filebox .acts{display:flex;gap:8px;flex-wrap:wrap}
+.form hr{border:0;border-top:1px solid var(--line);margin:0;width:100%}
+.form h3{margin:0;font-size:13px;font-weight:700}
+.toast{
+  position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:50;
+  max-width:calc(100vw - 32px);padding:10px 16px;border-radius:10px;background:#2a1520;border:1px solid #5a2b3a;color:#FFD3DA;
+}
+
+@media (max-width:640px){
+  :root{--label-w:132px}
+  .bar{padding:10px 12px}
+  .banner{padding:10px 12px}
+  .status{flex-basis:100%;order:5}
+  .label{padding:0 10px;gap:8px}
+  .label .dates{display:none}
+  .corner{padding-left:10px}
+  .pair{flex-direction:column}
+}
+@media (prefers-reduced-motion:reduce){
+  *{scroll-behavior:auto !important;transition:none !important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <h1>線表</h1>
+    <span class="status" id="status" role="status"></span>
+    <div class="seg" role="group" aria-label="表示の単位">
+      <button type="button" data-view="week" aria-pressed="true">週</button>
+      <button type="button" data-view="month" aria-pressed="false">月</button>
+    </div>
+    <button type="button" class="btn" id="fileBtn">ファイル</button>
+    <button type="button" class="btn" id="toToday"><span class="dot" aria-hidden="true"></span>今日へ</button>
+    <button type="button" class="btn primary" id="add">項目を追加</button>
+  </header>
+
+  <div class="banner" id="banner" hidden>
+    <p id="bannerText"></p>
+    <button type="button" class="btn primary" id="bnNew">新しく作る</button>
+    <button type="button" class="btn" id="bnOpen">既存のファイルを開く</button>
+    <button type="button" class="btn primary" id="bnResume">保存を再開</button>
+  </div>
+
+  <div class="stage">
+    <div class="scroller" id="scroller" tabindex="0" aria-label="線表">
+      <div class="sheet" id="sheet" data-view="week"></div>
+    </div>
+    <div class="empty" id="empty" hidden>
+      <p id="emptyText">まだ項目がありません。最初の項目を追加してください。</p>
+      <div class="acts" id="emptyActs">
+        <button type="button" class="btn primary" id="emptyAdd">項目を追加</button>
+        <button type="button" class="btn" id="emptySample">サンプルを入れる</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<dialog id="dlg" aria-labelledby="dlgTitle">
+  <form class="form" id="form">
+    <h2 id="dlgTitle">項目を追加</h2>
+
+    <fieldset>
+      <legend>種類</legend>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="kind" value="bar" checked><span>期間のあるタスク</span></label>
+        <label class="opt"><input type="radio" name="kind" value="event"><span>イベント</span></label>
+      </div>
+    </fieldset>
+
+    <label class="field"><span>名前</span>
+      <input type="text" id="fName" maxlength="60" required autocomplete="off">
+    </label>
+
+    <div class="pair">
+      <label class="field"><span id="startLabel">開始日</span><input type="date" id="fStart" min="1990-01-01" max="2100-12-31" required></label>
+      <label class="field" id="endWrap"><span>終了日</span><input type="date" id="fEnd" min="1990-01-01" max="2100-12-31" required></label>
+    </div>
+
+    <fieldset id="markWrap" hidden>
+      <legend>マーク</legend>
+      <div class="opts" id="markOpts"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>色</legend>
+      <div class="opts" id="colorOpts"></div>
+    </fieldset>
+
+    <div class="foot">
+      <button type="button" class="btn danger" id="del" hidden>削除</button>
+      <button type="button" class="btn" id="up" hidden>上へ</button>
+      <button type="button" class="btn" id="down" hidden>下へ</button>
+      <span class="sp"></span>
+      <button type="button" class="btn" id="cancel">キャンセル</button>
+      <button type="submit" class="btn primary" id="save">追加する</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="fileDlg" aria-labelledby="fileTitle">
+  <div class="form">
+    <h2 id="fileTitle">ファイル</h2>
+    <div class="filebox" id="autoBox">
+      <h3>自動保存するファイル</h3>
+      <p id="fileInfo"></p>
+      <div class="acts">
+        <button type="button" class="btn" id="fNew">新しいファイルに保存</button>
+        <button type="button" class="btn" id="fOpen">ファイルを開く</button>
+        <button type="button" class="btn" id="fDrop">接続を解除</button>
+      </div>
+    </div>
+    <hr id="fileHr">
+    <div class="filebox">
+      <h3>控え</h3>
+      <p>今の線表をファイルとしてダウンロードしたり、控えから読み込んだりできます。</p>
+      <div class="acts">
+        <button type="button" class="btn" id="fExport">控えを書き出す</button>
+        <button type="button" class="btn" id="fImport">控えを読み込む</button>
+      </div>
+    </div>
+    <div class="foot"><span class="sp"></span><button type="button" class="btn" id="fClose">閉じる</button></div>
+  </div>
+  <input type="file" id="importInput" accept=".json,application/json" hidden>
+</dialog>
+
+<div class="toast" id="toast" role="alert" hidden></div>
+
+<script>
+(function(){
+'use strict';
+
+var DAY = 864e5;
+var COLORS = {blue:'#5AA2FF', teal:'#39D3C3', violet:'#A68CFF', pink:'#FF7BA9', orange:'#FF9D4A', yellow:'#F4D650'};
+var COLOR_NAMES = {blue:'青', teal:'青緑', violet:'紫', pink:'ピンク', orange:'オレンジ', yellow:'黄'};
+var MARKS = {star:'星', tri:'三角', down:'逆三角', dia:'ひし形'};
+var DAY_W = {week:28, month:6};
+var LS_TASKS = 'senpyo-tasks', LS_VIEW = 'senpyo-view', LS_DIRTY = 'senpyo-dirty';
+
+// link: 'none' 未設定 / 'ok' 自動保存中 / 'ask' 許可待ち / 'unsupported' このブラウザでは使えない
+var state = {tasks:[], view:'week', link:'none', fileName:'', saving:false};
+var handle = null;         // 自動保存するファイル
+var lastMod = 0;           // 最後に読み書きしたときのファイル更新時刻
+var rev = 0;               // 編集のたびに増える番号
+var writeTimer = 0;
+var writing = Promise.resolve();
+var layout = null;         // 直近の描画の {lo, dayW}
+var didFirstScroll = false;
+var editingId = null;
+
+function $(id){ return document.getElementById(id); }
+function h(tag, cls, text){
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+/* ---- 日付 ---- */
+function ymd(y, m, d){ return Math.round(Date.UTC(y, m - 1, d) / DAY); }
+function toNum(s){ var a = s.split('-'); return ymd(+a[0], +a[1], +a[2]); }
+function toStr(n){ return new Date(n * DAY).toISOString().slice(0, 10); }
+function parts(n){ var d = new Date(n * DAY); return {y:d.getUTCFullYear(), m:d.getUTCMonth() + 1, d:d.getUTCDate(), w:d.getUTCDay()}; }
+function todayNum(){ var t = new Date(); return ymd(t.getFullYear(), t.getMonth() + 1, t.getDate()); }
+function md(n){ var p = parts(n); return p.m + '/' + p.d; }
+
+/* ---- マーク ---- */
+function markSvg(mark, size){
+  var shape;
+  if (mark === 'tri') shape = '<polygon points="10,2.5 18.5,17.5 1.5,17.5"/>';
+  else if (mark === 'down') shape = '<polygon points="1.5,2.5 18.5,2.5 10,17.5"/>';
+  else if (mark === 'dia') shape = '<polygon points="10,1.5 18.5,10 10,18.5 1.5,10"/>';
+  else {
+    var pts = [];
+    for (var i = 0; i < 10; i++){
+      var r = i % 2 ? 4.1 : 9.2, a = -Math.PI / 2 + i * Math.PI / 5;
+      pts.push((10 + r * Math.cos(a)).toFixed(2) + ',' + (10.6 + r * Math.sin(a)).toFixed(2));
+    }
+    shape = '<polygon points="' + pts.join(' ') + '"/>';
+  }
+  return '<svg viewBox="0 0 20 20" width="' + size + '" height="' + size + '" aria-hidden="true" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">' + shape + '</svg>';
+}
+function markEl(mark, size){ var s = h('span', 'mk'); s.innerHTML = markSvg(mark, size); return s; }
+
+/* ---- データの整形 ---- */
+var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+var MIN_DAY = ymd(1990, 1, 1), MAX_DAY = ymd(2100, 12, 31);   // 扱う日付の範囲
+var MAX_TASKS = 1000;                                          // 項目数の上限
+var MAX_BYTES = 2 * 1024 * 1024;                               // 読み込むファイルの上限
+function has(o, k){ return typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k); }
+function validDate(s){
+  if (typeof s !== 'string' || !DATE_RE.test(s)) return false;
+  var n = toNum(s);
+  return n >= MIN_DAY && n <= MAX_DAY && toStr(n) === s;
+}
+function clean(raw, id){
+  if (!raw || typeof raw !== 'object' || typeof raw.name !== 'string' || !validDate(raw.start)) return null;
+  var kind = raw.kind === 'event' ? 'event' : 'bar';
+  var s = toNum(raw.start);
+  var e = (kind === 'bar' && validDate(raw.end)) ? toNum(raw.end) : s;
+  if (e < s) e = s;
+  return {
+    id: id, name: raw.name.slice(0, 60) || '（名前なし）', kind: kind, s: s, e: e,
+    color: has(COLORS, raw.color) ? raw.color : 'blue',
+    mark: has(MARKS, raw.mark) ? raw.mark : 'star',
+    order: typeof raw.order === 'number' && isFinite(raw.order) ? raw.order : 0
+  };
+}
+function sorted(){
+  return state.tasks.slice().sort(function(a, b){ return a.order - b.order || (a.id < b.id ? -1 : 1); });
+}
+function body(t){
+  return {name:t.name, kind:t.kind, start:toStr(t.s), end:toStr(t.e), color:t.color, mark:t.mark, order:t.order};
+}
+
+/* ---- 保存 ---- */
+function loadLocal(){
+  try {
+    var arr = JSON.parse(localStorage.getItem(LS_TASKS) || '[]');
+    if (!Array.isArray(arr)) return [];
+    return arr.slice(0, MAX_TASKS).map(function(r){ return clean(r, String(r && r.id || '')); }).filter(function(t){ return t && t.id; });
+  } catch (e) { return []; }
+}
+function saveLocal(){
+  try {
+    localStorage.setItem(LS_TASKS, JSON.stringify(state.tasks.map(function(t){ var b = body(t); b.id = t.id; return b; })));
+  } catch (e) {}
+}
+function isDirty(){ try { return localStorage.getItem(LS_DIRTY) === '1'; } catch (e) { return false; } }
+function setDirty(v){ try { localStorage.setItem(LS_DIRTY, v ? '1' : ''); } catch (e) {} }
+function newId(){ return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+// 編集を確定する：ブラウザ内に保存し、ファイルにも書き込む
+function commit(){
+  rev++; saveLocal(); setDirty(true); render();
+  clearTimeout(writeTimer); writeTimer = setTimeout(writeFile, 400);
+}
+function putTask(t){
+  if (!t.id){
+    if (state.tasks.length >= MAX_TASKS){ toast('項目は' + MAX_TASKS + '個までです。'); return; }
+    t.id = newId(); state.tasks.push(t);
+  }
+  else { state.tasks = state.tasks.map(function(x){ return x.id === t.id ? t : x; }); }
+  commit();
+}
+function removeTask(id){
+  state.tasks = state.tasks.filter(function(x){ return x.id !== id; });
+  commit();
+}
+function nextOrder(){
+  return state.tasks.reduce(function(m, t){ return Math.max(m, t.order); }, 0) + 1;
+}
+function move(id, dir){
+  var list = sorted(), i = -1;
+  list.forEach(function(t, k){ if (t.id === id) i = k; });
+  var j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  var near = list[j], far = list[j + dir];
+  var t = Object.assign({}, list[i]);
+  t.order = far ? (near.order + far.order) / 2 : near.order + dir;
+  putTask(t);
+}
+
+/* ---- ファイル ---- */
+var FILE_TYPES = [{description:'線表のデータ', accept:{'application/json':['.json']}}];
+function serialize(){
+  return JSON.stringify({
+    app:'senpyo', version:1, saved:new Date().toISOString(),
+    tasks: sorted().map(function(t){ var b = body(t); b.id = t.id; return b; })
+  }, null, 2);
+}
+function readText(file){
+  if (file.size > MAX_BYTES) return Promise.reject(new Error('format'));
+  return file.text();
+}
+function parseData(text){
+  if (!text.trim()) return [];
+  var o = JSON.parse(text);
+  // このアプリが書き出したファイルだけを受け付ける（他のアプリのファイルを上書きしないため）
+  if (!o || o.app !== 'senpyo' || !Array.isArray(o.tasks)) throw new Error('format');
+  var seen = Object.create(null);
+  return o.tasks.slice(0, MAX_TASKS).map(function(r){
+    var id = String(r && r.id || '');
+    if (!id || seen[id]) id = newId();
+    seen[id] = 1;
+    return clean(r, id);
+  }).filter(Boolean);
+}
+
+function idb(){
+  return new Promise(function(res, rej){
+    var r = indexedDB.open('senpyo', 1);
+    r.onupgradeneeded = function(){ r.result.createObjectStore('kv'); };
+    r.onsuccess = function(){ res(r.result); };
+    r.onerror = function(){ rej(r.error); };
+  });
+}
+function idbGet(k){
+  return idb().then(function(d){ return new Promise(function(res, rej){
+    var q = d.transaction('kv').objectStore('kv').get(k);
+    q.onsuccess = function(){ res(q.result); }; q.onerror = function(){ rej(q.error); };
+  }); });
+}
+function idbSet(k, v){
+  return idb().then(function(d){ return new Promise(function(res, rej){
+    var st = d.transaction('kv', 'readwrite').objectStore('kv');
+    var q = v == null ? st.delete(k) : st.put(v, k);
+    q.onsuccess = function(){ res(); }; q.onerror = function(){ rej(q.error); };
+  }); }).catch(function(){});
+}
+
+function writeFile(){
+  clearTimeout(writeTimer);
+  if (!handle || state.link !== 'ok') return Promise.resolve();
+  var mine = rev, text = serialize(), h = handle;
+  state.saving = true; updateStatus();
+  writing = writing.then(function(){ return h.createWritable(); })
+    .then(function(w){ return w.write(text).then(function(){ return w.close(); }); })
+    .then(function(){ return h.getFile(); })
+    .then(function(f){
+      if (h !== handle) return;
+      lastMod = f.lastModified;
+      if (mine === rev) setDirty(false);
+      state.saving = false; updateStatus();
+    })
+    .catch(function(){
+      if (h !== handle) return;
+      state.saving = false; state.link = 'ask'; updateStatus();
+    });
+  return writing;
+}
+function readFile(){
+  var h = handle;
+  return h.getFile().then(function(f){
+    return readText(f).then(function(text){
+      if (h !== handle) return;
+      state.tasks = parseData(text);
+      lastMod = f.lastModified;
+      saveLocal(); setDirty(false); render();
+    });
+  }).catch(function(e){
+    if (h !== handle) return;
+    if (e && (e.name === 'SyntaxError' || e.message === 'format')){
+      toast('「' + h.name + '」は線表のファイルとして読み込めませんでした。');
+      dropFile();
+    } else { state.link = 'ask'; updateStatus(); }
+  });
+}
+function adopt(h, granted){
+  handle = h; state.fileName = h.name; state.link = granted ? 'ok' : 'ask';
+  idbSet('file', h); updateStatus();
+}
+function aborted(e){ return e && e.name === 'AbortError'; }
+function createFile(){
+  window.showSaveFilePicker({suggestedName:'線表.json', types:FILE_TYPES}).then(function(h){
+    // 選んだファイルにすでに線表が入っていないか確かめる
+    return h.getFile().then(readText).then(parseData).catch(function(){ return []; }).then(function(old){
+      if (old.length && !state.tasks.length){
+        adopt(h, true);
+        state.tasks = old; rev++; saveLocal(); setDirty(false); render();
+        toast('「' + h.name + '」に入っていた線表を読み込みました。');
+        return;
+      }
+      if (old.length && !window.confirm('「' + h.name + '」にはすでに線表が入っています。今の内容で上書きしますか？')) return;
+      adopt(h, true);
+      return writeFile();
+    });
+  }).catch(function(e){ if (!aborted(e)) toast('ファイルを作成できませんでした。'); });
+}
+function openFile(){
+  window.showOpenFilePicker({types:FILE_TYPES}).then(function(list){
+    var h = list[0];
+    return h.requestPermission({mode:'readwrite'}).catch(function(){ return 'prompt'; }).then(function(p){
+      return h.getFile().then(readText).then(function(text){
+        var tasks = parseData(text);
+        if (state.tasks.length && !window.confirm('今の線表を「' + h.name + '」の内容に置き換えます。よろしいですか？')) return;
+        adopt(h, p === 'granted');
+        state.tasks = tasks; rev++; saveLocal(); setDirty(false); render();
+      });
+    });
+  }).catch(function(e){
+    if (aborted(e)) return;
+    toast(e && (e.name === 'SyntaxError' || e.message === 'format') ? '線表のファイルとして読み込めませんでした。' : 'ファイルを開けませんでした。');
+  });
+}
+function resumeFile(){
+  if (!handle) return;
+  handle.requestPermission({mode:'readwrite'}).then(function(p){
+    if (p !== 'granted') return;
+    state.link = 'ok'; updateStatus();
+    return isDirty() ? writeFile() : readFile();
+  }).catch(function(){ toast('ファイルに接続できませんでした。「ファイル」から選び直してください。'); });
+}
+function dropFile(){
+  handle = null; state.fileName = ''; state.link = 'none'; state.saving = false;
+  idbSet('file', null); updateStatus();
+}
+function initFile(){
+  if (!window.showOpenFilePicker || !window.showSaveFilePicker || !window.indexedDB){
+    state.link = 'unsupported'; updateStatus(); return;
+  }
+  idbGet('file').then(function(h){
+    if (!h){ state.link = 'none'; updateStatus(); return; }
+    handle = h; state.fileName = h.name;
+    return h.queryPermission({mode:'readwrite'}).then(function(p){
+      if (p !== 'granted'){ state.link = 'ask'; updateStatus(); return; }
+      state.link = 'ok'; updateStatus();
+      return isDirty() ? writeFile() : readFile();
+    });
+  }).catch(function(){ state.link = 'none'; updateStatus(); });
+}
+// 別の場所でファイルが更新されていたら読み直す
+function refreshFromFile(){
+  if (!handle || state.link !== 'ok' || state.saving || isDirty()) return;
+  var h = handle;
+  h.getFile().then(function(f){ if (h === handle && f.lastModified !== lastMod) readFile(); }).catch(function(){});
+}
+
+function exportCopy(){
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([serialize()], {type:'application/json'}));
+  a.download = '線表_' + toStr(todayNum()) + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+}
+function importCopy(file){
+  readText(file).then(function(text){
+    var tasks = parseData(text);
+    if (state.tasks.length && !window.confirm('今の線表を「' + file.name + '」の内容に置き換えます。よろしいですか？')) return;
+    state.tasks = tasks; commit(); $('fileDlg').close();
+  }).catch(function(){ toast('線表のファイルとして読み込めませんでした。'); });
+}
+
+function updateStatus(){
+  var k = state.link, name = '「' + state.fileName + '」';
+  $('status').textContent =
+    k === 'ok' ? (state.saving ? '保存中…' : name + 'に保存済み')
+    : k === 'ask' ? (isDirty() ? 'まだファイルに保存されていない変更があります' : 'ファイルに未接続')
+    : k === 'none' ? 'ブラウザ内にのみ保存中'
+    : 'ブラウザ内に保存されます';
+  var bn = $('banner');
+  bn.hidden = !(k === 'none' || k === 'ask');
+  $('bannerText').textContent = k === 'ask'
+    ? name + 'への自動保存を再開するには、許可が必要です。'
+    : '保存先のファイルを決めると、編集のたびに自動で上書き保存されます。以前のファイルがある場合は「既存のファイルを開く」を選んでください。';
+  $('bnNew').hidden = $('bnOpen').hidden = k !== 'none';
+  $('bnResume').hidden = k !== 'ask';
+  $('autoBox').hidden = $('fileHr').hidden = k === 'unsupported';
+  $('fileInfo').textContent = k === 'ok' ? name + 'に自動保存しています。'
+    : k === 'ask' ? name + 'への保存が止まっています。「保存を再開」を押してください。'
+    : '未設定です。ファイルを決めると、編集のたびに自動で上書き保存されます。';
+  $('fDrop').hidden = !handle;
+}
+
+/* ---- 描画 ---- */
+function range(tasks){
+  var t = todayNum(), lo = t - 21, hi = t + 84;
+  tasks.forEach(function(x){ lo = Math.min(lo, x.s - 14); hi = Math.max(hi, x.e + 28); });
+  lo -= (parts(lo).w + 6) % 7;      // 月曜はじまりにそろえる
+  hi += (7 - parts(hi).w) % 7;      // 日曜で終える
+  return {lo:lo, hi:hi};
+}
+
+function render(){
+  var scroller = $('scroller'), sheet = $('sheet');
+  var dayW = DAY_W[state.view];
+  var anchor = layout ? layout.lo + scroller.scrollLeft / layout.dayW : null;
+  var tasks = sorted(), r = range(tasks), lo = r.lo, hi = r.hi;
+  var W = (hi - lo + 1) * dayW, today = todayNum(), locked = false;
+
+  sheet.dataset.view = state.view;
+  sheet.style.setProperty('--day-w', dayW + 'px');
+  sheet.style.width = 'calc(var(--label-w) + ' + W + 'px)';
+
+  var head = h('div', 'head'), corner = h('div', 'corner', '項目'), scale = h('div', 'scale');
+  var top = h('div', 'scale-top'), bot = h('div', 'scale-bot');
+  var under = h('div', 'under');
+  scale.style.width = W + 'px';
+  under.style.width = W + 'px';
+
+  // 月の見出しと月の境界線
+  for (var d = lo; d <= hi; ){
+    var p = parts(d), next = ymd(p.y, p.m + 1, 1), end = Math.min(next - 1, hi);
+    var mo = h('div', 'mo');
+    mo.style.width = (end - d + 1) * dayW + 'px';
+    mo.appendChild(h('span', 'mo-t num', p.y + '年' + p.m + '月'));
+    top.appendChild(mo);
+    if (d !== lo){ var ml = h('div', 'v month'); ml.style.left = (d - lo) * dayW + 'px'; under.appendChild(ml); }
+    d = next;
+  }
+  // 日付の目盛り
+  if (state.view === 'week'){
+    for (var n = lo; n <= hi; n++){
+      var q = parts(n), cls = 'tick num';
+      if (q.w === 1) cls += ' mon';
+      if (q.w === 0 || q.w === 6) cls += ' off';
+      if (n === today) cls += ' now';
+      bot.appendChild(h('div', cls, q.d));
+    }
+    var tc = h('div', 'v todaycol'); tc.style.left = (today - lo) * dayW + 'px'; under.appendChild(tc);
+  } else {
+    for (var k = lo; k <= hi; k += 7) bot.appendChild(h('div', 'tick num', parts(k).d));
+  }
+  var notch = h('div', 'notch'); notch.style.left = (today - lo + .5) * dayW + 'px';
+  scale.appendChild(top); scale.appendChild(bot); scale.appendChild(notch);
+  head.appendChild(corner); head.appendChild(scale);
+
+  var bodyEl = h('div', 'body');
+  bodyEl.appendChild(under);
+
+  tasks.forEach(function(t){
+    var c = COLORS[t.color];
+    var row = h('div', 'row');
+    var label = h('button', 'label' + (t.kind === 'event' ? ' is-event' : ''));
+    label.type = 'button'; label.style.setProperty('--c', c); label.disabled = locked; label.title = t.name;
+    label.appendChild(t.kind === 'event' ? markEl(t.mark, 14) : h('span', 'chip'));
+    label.appendChild(h('span', 'name', t.name));
+    label.appendChild(h('span', 'dates num', t.kind === 'event' ? md(t.s) : md(t.s) + '–' + md(t.e)));
+    label.addEventListener('click', function(){ openDialog(t); });
+
+    var track = h('div', 'track'); track.style.width = W + 'px';
+    var hit;
+    if (t.kind === 'event'){
+      hit = h('button', 'ms');
+      hit.style.left = (t.s - lo + .5) * dayW - 10 + 'px';
+      hit.appendChild(markEl(t.mark, 20));
+      var nm = h('span', 'ms-name', t.name + ' ');
+      nm.appendChild(h('span', 'ms-date num', md(t.s)));
+      hit.appendChild(nm);
+      var line = h('div', 'v event'); line.style.left = (t.s - lo + .5) * dayW + 'px'; line.style.setProperty('--c', c);
+      under.appendChild(line);
+    } else {
+      hit = h('button', 'task');
+      hit.style.left = (t.s - lo) * dayW + 1 + 'px';
+      hit.style.width = Math.max(4, (t.e - t.s + 1) * dayW - 2) + 'px';
+      hit.setAttribute('aria-label', t.name + ' ' + md(t.s) + 'から' + md(t.e));
+    }
+    hit.type = 'button'; hit.style.setProperty('--c', c); hit.disabled = locked;
+    hit.title = t.name + '（' + (t.kind === 'event' ? md(t.s) : md(t.s) + '–' + md(t.e)) + '）';
+    hit.addEventListener('click', function(){ openDialog(t); });
+    track.appendChild(hit);
+    row.appendChild(label); row.appendChild(track);
+    bodyEl.appendChild(row);
+  });
+
+  var tl = h('div', 'v today'); tl.style.left = (today - lo + .5) * dayW + 'px'; under.appendChild(tl);
+  var fill = h('div', 'fill'); fill.appendChild(h('div', 'gut')); bodyEl.appendChild(fill);
+
+  sheet.replaceChildren(head, bodyEl);
+  layout = {lo:lo, dayW:dayW};
+  if (anchor !== null) scroller.scrollLeft = (anchor - lo) * dayW;
+  if (!didFirstScroll){ didFirstScroll = true; goToday(false); }
+
+  $('empty').hidden = tasks.length > 0;
+  updateStatus();
+}
+
+function goToday(smooth){
+  if (!layout) return;
+  var scroller = $('scroller'), labelW = document.querySelector('.corner').offsetWidth;
+  var x = (todayNum() - layout.lo + .5) * layout.dayW - (scroller.clientWidth - labelW) * .3;
+  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  scroller.scrollTo({left: Math.max(0, x), behavior: smooth && !calm ? 'smooth' : 'auto'});
+}
+
+/* ---- 追加・編集 ---- */
+function buildOptions(){
+  var co = $('colorOpts'), mo = $('markOpts');
+  Object.keys(COLORS).forEach(function(k, i){
+    var l = h('label', 'opt sw'), inp = h('input'), s = h('span'), sw = h('i');
+    inp.type = 'radio'; inp.name = 'color'; inp.value = k; inp.checked = i === 0;
+    inp.setAttribute('aria-label', COLOR_NAMES[k]);
+    sw.style.setProperty('--c', COLORS[k]); s.appendChild(sw); l.appendChild(inp); l.appendChild(s); co.appendChild(l);
+  });
+  Object.keys(MARKS).forEach(function(k, i){
+    var l = h('label', 'opt mark'), inp = h('input'), s = h('span');
+    inp.type = 'radio'; inp.name = 'mark'; inp.value = k; inp.checked = i === 0;
+    s.innerHTML = markSvg(k, 16); s.appendChild(document.createTextNode(MARKS[k]));
+    l.appendChild(inp); l.appendChild(s); mo.appendChild(l);
+  });
+}
+function radio(name, value){
+  var list = $('form').querySelectorAll('input[name="' + name + '"]');
+  if (value === undefined){
+    for (var i = 0; i < list.length; i++) if (list[i].checked) return list[i].value;
+    return null;
+  }
+  for (var j = 0; j < list.length; j++) list[j].checked = list[j].value === value;
+}
+function syncKind(){
+  var ev = radio('kind') === 'event';
+  $('endWrap').hidden = ev; $('fEnd').required = !ev;
+  $('markWrap').hidden = !ev;
+  $('startLabel').textContent = ev ? '日付' : '開始日';
+}
+function openDialog(t){
+  editingId = t ? t.id : null;
+  var today = todayNum();
+  $('dlgTitle').textContent = t ? '項目を編集' : '項目を追加';
+  $('save').textContent = t ? '変更を保存' : '追加する';
+  $('fName').value = t ? t.name : '';
+  $('fStart').value = toStr(t ? t.s : today);
+  $('fEnd').value = toStr(t ? t.e : today + 6);
+  radio('kind', t ? t.kind : 'bar');
+  radio('color', t ? t.color : 'blue');
+  radio('mark', t ? t.mark : 'star');
+  $('fEnd').setCustomValidity('');
+  ['del', 'up', 'down'].forEach(function(id){ $(id).hidden = !t; });
+  $('del').textContent = '削除'; $('del').dataset.armed = '';
+  syncKind();
+  $('dlg').showModal();
+  $('fName').focus();
+}
+function submit(ev){
+  ev.preventDefault();
+  var form = $('form'), kind = radio('kind'), endIn = $('fEnd');
+  endIn.setCustomValidity('');
+  if (!form.reportValidity()) return;
+  var name = $('fName').value.trim();
+  if (!name){ $('fName').value = ''; form.reportValidity(); return; }
+  var s = toNum($('fStart').value), e = kind === 'event' ? s : toNum(endIn.value);
+  if (e < s){ endIn.setCustomValidity('終了日は開始日以降にしてください'); form.reportValidity(); return; }
+  var prev = editingId && state.tasks.filter(function(x){ return x.id === editingId; })[0];
+  putTask({
+    id: editingId, name: name, kind: kind, s: s, e: e,
+    color: radio('color') || 'blue', mark: radio('mark') || 'star',
+    order: prev ? prev.order : nextOrder()
+  });
+  $('dlg').close();
+}
+function loadSample(){
+  var t = todayNum(), o = nextOrder();
+  [
+    ['要件定義', 'bar', -17, -6, 'blue'],
+    ['画面設計', 'bar', -10, 8, 'violet'],
+    ['設計レビュー', 'event', 8, 8, 'yellow', 'star'],
+    ['バックエンド開発', 'bar', 5, 36, 'teal'],
+    ['フロントエンド開発', 'bar', 12, 50, 'blue'],
+    ['中間デモ', 'event', 22, 22, 'orange', 'tri'],
+    ['結合テスト', 'bar', 47, 64, 'pink'],
+    ['機能の締め切り', 'event', 50, 50, 'pink', 'down'],
+    ['受け入れ確認', 'bar', 60, 71, 'orange'],
+    ['公開', 'event', 74, 74, 'yellow', 'star']
+  ].forEach(function(a, i){
+    putTask({id:null, name:a[0], kind:a[1], s:t + a[2], e:t + a[3], color:a[4], mark:a[5] || 'star', order:o + i});
+  });
+}
+
+var toastTimer = 0;
+function toast(msg){
+  var el = $('toast'); el.textContent = msg; el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(function(){ el.hidden = true; }, 5000);
+}
+
+/* ---- 操作 ---- */
+function setView(v){
+  state.view = v;
+  document.querySelectorAll('.seg button').forEach(function(b){ b.setAttribute('aria-pressed', String(b.dataset.view === v)); });
+  try { localStorage.setItem(LS_VIEW, v); } catch (e) {}
+  render();
+}
+function wire(){
+  document.querySelectorAll('.seg button').forEach(function(b){
+    b.addEventListener('click', function(){ setView(b.dataset.view); });
+  });
+  $('toToday').addEventListener('click', function(){ goToday(true); });
+  $('add').addEventListener('click', function(){ openDialog(null); });
+  $('emptyAdd').addEventListener('click', function(){ openDialog(null); });
+  $('emptySample').addEventListener('click', loadSample);
+  $('form').addEventListener('submit', submit);
+  $('form').querySelectorAll('input[name="kind"]').forEach(function(i){ i.addEventListener('change', syncKind); });
+  $('fEnd').addEventListener('input', function(){ $('fEnd').setCustomValidity(''); });
+  $('cancel').addEventListener('click', function(){ $('dlg').close(); });
+  $('up').addEventListener('click', function(){ move(editingId, -1); });
+  $('down').addEventListener('click', function(){ move(editingId, 1); });
+  $('del').addEventListener('click', function(){
+    var b = $('del');
+    if (!b.dataset.armed){ b.dataset.armed = '1'; b.textContent = '本当に削除する'; return; }
+    removeTask(editingId); $('dlg').close();
+  });
+  $('dlg').addEventListener('click', function(ev){ if (ev.target === $('dlg')) $('dlg').close(); });
+
+  $('fileBtn').addEventListener('click', function(){ $('fileDlg').showModal(); });
+  $('fClose').addEventListener('click', function(){ $('fileDlg').close(); });
+  $('fileDlg').addEventListener('click', function(ev){ if (ev.target === $('fileDlg')) $('fileDlg').close(); });
+  $('bnNew').addEventListener('click', createFile);
+  $('bnOpen').addEventListener('click', openFile);
+  $('bnResume').addEventListener('click', resumeFile);
+  $('fNew').addEventListener('click', function(){ $('fileDlg').close(); createFile(); });
+  $('fOpen').addEventListener('click', function(){ $('fileDlg').close(); openFile(); });
+  $('fDrop').addEventListener('click', dropFile);
+  $('fExport').addEventListener('click', exportCopy);
+  $('fImport').addEventListener('click', function(){ $('importInput').value = ''; $('importInput').click(); });
+  $('importInput').addEventListener('change', function(){ var f = $('importInput').files[0]; if (f) importCopy(f); });
+  window.addEventListener('focus', refreshFromFile);
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden) refreshFromFile(); });
+  window.addEventListener('beforeunload', function(){ if (writeTimer) writeFile(); });
+}
+
+/* ---- 起動 ---- */
+function start(){
+  try { var v = localStorage.getItem(LS_VIEW); if (v === 'week' || v === 'month') state.view = v; } catch (e) {}
+  state.tasks = loadLocal();
+  buildOptions(); wire(); setView(state.view);
+  initFile();
+}
+start();
+})();
+</script>
+</body>
+</html>
